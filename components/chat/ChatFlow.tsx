@@ -13,6 +13,7 @@ const PARENT_ANSWERS: ParentAnswer[] = ['まったくない', 'あまりない',
 
 type Action =
   | { type: 'START_QUIZ' }
+  | { type: 'CONFIRM_Q0' }
   | { type: 'ANSWER_PARENT'; answer: ParentAnswer }
   | { type: 'TOGGLE_CHILD'; id: string }
   | { type: 'CONFIRM_CHILD' }
@@ -37,7 +38,7 @@ const initialChildChecks: Record<ChildType, string[]> = {
 const initialState: QuizState = {
   phase: 'welcome',
   messages: [
-    botMsg('こんにちは！ いいかもさんだよ🦆\nお子さんのことで、今どんなことを感じているか、一緒に整理してみよう。\n準備ができたら「はじめる」を押してね。'),
+    botMsg('こんにちは♪ 僕はcocoだよ♪\nこれからいくつかの質問をするね。\nこれは診断や評価ではなく、今のあなたとお子さんの状態をやさしく整理するためのものだから安心してね。\n正解・不正解はないから「今の様子に近いもの」を気軽に選んでほしいの。\n（所要時間は約8分です）'),
   ],
   parentQuestionIndex: 0,
   childQuestionIndex: 0,
@@ -45,19 +46,33 @@ const initialState: QuizState = {
   childChecks: initialChildChecks,
   currentChildSelections: [],
   resultId: null,
+  parentSubType: null,
+  childSubType: null,
 }
 
 function reducer(state: QuizState, action: Action): QuizState {
   switch (action.type) {
     case 'START_QUIZ': {
+      return {
+        ...state,
+        phase: 'q0_opening',
+        messages: [
+          ...state.messages,
+          userMsg('はじめる'),
+          botMsg('これからする質問は、「親であるあなたご自身について」「お子さんの今の様子について」の2つがあるよ'),
+        ],
+      }
+    }
+
+    case 'CONFIRM_Q0': {
       const q = parentQuestions[0]
       return {
         ...state,
         phase: 'parent_questions',
         messages: [
           ...state.messages,
-          userMsg('はじめる'),
-          botMsg('ありがとう。\nまず、あなた自身のことを少し聞かせてね。\nどれに近いか選んでみて。'),
+          userMsg('理解しました'),
+          botMsg('まずは、「親（またはサポートしている人）であるあなた」のことについて教えてほしいの♪'),
           botMsg(q.text),
         ],
       }
@@ -95,7 +110,7 @@ function reducer(state: QuizState, action: Action): QuizState {
         messages: [
           ...state.messages,
           userMsg(action.answer),
-          botMsg('ありがとう。\n次は、お子さんのことを教えてね。\nあてはまるものを複数選んでOKだよ。'),
+          botMsg('次は、お子さんの今の様子について近いものをいくつでも選んでね♪'),
           botMsg(`【${firstChild.title}】\n${firstChild.questionText}`),
         ],
       }
@@ -145,18 +160,28 @@ function reducer(state: QuizState, action: Action): QuizState {
       }
 
       // Calculate result
-      const parentType = determineParentType(state.parentAnswers)
-      const childType = determineChildType(newChecks)
-      const resultId = getResultId(parentType, childType)
+      const parentResult = determineParentType(state.parentAnswers)
+      const childResult = determineChildType(newChecks)
+      const resultId = getResultId(parentResult.primary, childResult.primary)
       const result = results.find((r) => r.resultId === resultId)
 
-      const resultText = result
-        ? `${result.title}\n\n${result.body}`
+      const currentText = result
+        ? `今の現状を整理すると・・・\n\n「ママやパパなど相談者さん」は ${result.parentState}\n「お子さん」は ${result.childState}`
+        : ''
+
+      const letterText = result
+        ? `【${result.title}】\n\n${result.letter}`
         : '結果を取得できませんでした。'
 
-      const adviceText = result
-        ? `📌 アドバイスA\n${result.adviceA}\n\n📌 アドバイスB\n${result.adviceB}\n\n📌 アドバイスC\n${result.adviceC}`
+      const tryText = result
+        ? `✨ やってみてもイイかも！\n\n① ${result.advices[0]}\n② ${result.advices[1]}\n③ ${result.advices[2]}`
         : ''
+
+      const consultMsg =
+        'もし「もう少し詳しく話してみたい」と感じたら、お試し40分相談（3,000円）を活用してみてね♪\n\n診断結果をもとに、今の親子の状態をいっしょに整理するお手伝いをしています。「誰かに一度聞いてもらいたい」と思ったときが、動き出すタイミングかもしれません。'
+
+      const encourageMsg =
+        '最後まで向き合ってくれて、ありがとう♪\n\n答えながら、いろんなことを感じてくれたかもしれないね。正解なんてないのに、真剣に選んでくれたこと、それだけでもう十分すごいことだよ。\n\n焦らなくて大丈夫。cocoはいつでもここにいるよ♪'
 
       return {
         ...state,
@@ -165,12 +190,17 @@ function reducer(state: QuizState, action: Action): QuizState {
         childQuestionIndex: nextIdx,
         currentChildSelections: [],
         resultId,
+        parentSubType: parentResult.secondary,
+        childSubType: childResult.secondary,
         messages: [
           ...state.messages,
           userMsg(userText),
-          botMsg('全部教えてくれてありがとう🦆\n結果をお伝えするね。'),
-          botMsg(resultText),
-          ...(adviceText ? [botMsg(adviceText)] : []),
+          botMsg('最後まで答えてくれてありがとう。'),
+          ...(currentText ? [botMsg(currentText)] : []),
+          botMsg(letterText),
+          ...(tryText ? [botMsg(tryText)] : []),
+          botMsg(consultMsg),
+          botMsg(encourageMsg),
         ],
       }
     }
@@ -198,9 +228,11 @@ export function ChatFlow() {
         className="flex items-center gap-2 px-4 py-3 border-b shadow-sm"
         style={{ background: '#FFFFFF', borderColor: '#EDE0D4' }}
       >
-        <span className="text-2xl">🦆</span>
+        <div className="w-8 h-8 rounded-full overflow-hidden shadow-sm flex-shrink-0">
+          <img src="/avatar.png" alt="ぽけっと保健室" className="object-cover w-full h-full" />
+        </div>
         <span className="font-bold text-base" style={{ color: 'var(--ecamo-text)' }}>
-          いいかもさん
+          ぽけっと保健室
         </span>
       </header>
 
@@ -224,6 +256,16 @@ export function ChatFlow() {
           </button>
         )}
 
+        {state.phase === 'q0_opening' && (
+          <button
+            onClick={() => dispatch({ type: 'CONFIRM_Q0' })}
+            className="w-full py-3 rounded-2xl font-bold text-white transition-all active:scale-95"
+            style={{ background: 'var(--ecamo-primary)' }}
+          >
+            理解しました
+          </button>
+        )}
+
         {state.phase === 'parent_questions' && (
           <SingleChoiceButtons
             choices={PARENT_ANSWERS}
@@ -240,11 +282,7 @@ export function ChatFlow() {
           />
         )}
 
-        {state.phase === 'result' && (
-          <p className="text-center text-sm" style={{ color: 'var(--ecamo-muted)' }}>
-            診断が完了しました🦆
-          </p>
-        )}
+        {state.phase === 'result' && null}
       </div>
     </div>
   )

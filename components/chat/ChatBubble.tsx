@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import type { ChatMessage } from '@/lib/types'
 
 interface Props {
@@ -12,11 +13,8 @@ export function ChatBubble({ message }: Props) {
   if (isBot) {
     return (
       <div className="flex items-end gap-2 animate-fade-in">
-        <div
-          className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-xl shadow-sm"
-          style={{ background: 'var(--ecamo-primary-light)' }}
-        >
-          🦆
+        <div className="flex-shrink-0 w-9 h-9 rounded-full overflow-hidden shadow-sm">
+          <Image src="/avatar.png" alt="ぽけっと保健室" width={36} height={36} className="object-cover w-full h-full" />
         </div>
         <div
           className="max-w-[75%] rounded-2xl rounded-bl-sm px-4 py-3 text-sm leading-relaxed shadow-sm whitespace-pre-wrap"

@@ -25,10 +25,16 @@ export interface DiagnosisResult {
   parentType: ParentType
   childType: ChildType
   title: string
-  body: string
-  adviceA: string
-  adviceB: string
-  adviceC: string
+  parentState: string
+  childState: string
+  letter: string
+  advices: [string, string, string]
+}
+
+// メインタイプとサブタイプ（同点・近接スコア時）
+export interface TypeScoreResult<T> {
+  primary: T
+  secondary: T | null
 }
 
 export interface ChatMessage {
@@ -53,4 +59,6 @@ export interface QuizState {
   childChecks: Record<ChildType, string[]>
   currentChildSelections: string[]
   resultId: string | null
+  parentSubType: ParentType | null
+  childSubType: ChildType | null
 }
